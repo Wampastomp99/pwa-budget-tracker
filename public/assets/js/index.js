@@ -74,3 +74,74 @@ if ("serviceWorker" in navigator) {
         return response.json();
       });
     };
+    
+  const fetchAll = () => {
+    return fetch("/api/transaction").then((response) => {
+      return response.json();
+    });
+  };
+  return Object.freeze({ create, fetchAll });
+}
+
+function initTransactions() {
+  transactionApi.fetchAll().then((data) => {
+    // save db data on global variable
+    transactions = data;
+
+    renderTransactionsChart();
+  });
+}
+
+function sendTransaction(isAdding) {
+  if (!transactionForm.validate()) {
+    return;
+  }
+
+  // create record
+  const transaction = transactionForm.transaction();
+
+  // if subtracting funds, convert amount to negative number
+  if (!isAdding) {
+    transaction.value *= -1;
+  }
+
+  // add to beginning of current array of data
+  transactions.unshift(transaction);
+
+  // re-run logic to populate ui with new record
+  populateChart();
+  populateTable();
+  populateTotal();
+
+  // also send to server
+  transactionApi
+    .create(transaction)
+    .then((data) => {
+      if (data.errors) {
+        transactionForm.showError("Missing Information");
+      } else {
+        transactionForm.clear();
+      }
+    })
+    .catch(() => {
+      // fetch failed, so save in indexed db
+      saveRecord(transaction);
+      transactionForm.clear();
+    });
+}
+
+function renderTransactionsChart() {
+  populateTotal();
+  populateTable();
+  populateChart();
+}
+
+function populateTotal() {
+  // reduce transaction amounts to a single total value
+  const total = transactions.reduce((total, t) => {
+    return total + parseInt(t.value);
+  }, 0);
+
+  const totalEl = document.querySelector("#total");
+  totalEl.textContent = total;
+}
